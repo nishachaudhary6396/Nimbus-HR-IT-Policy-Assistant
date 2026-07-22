@@ -1,5 +1,6 @@
 import logging
 
+from guard.hallucination_guard import HallucinationGuard
 from retriever.retriever import PolicyRetriever
 
 logger = logging.getLogger(__name__)
@@ -7,45 +8,58 @@ logger = logging.getLogger(__name__)
 
 class PolicyRetrieverTool:
     """
-    Handles retrieval from the Nimbus policy knowledge base.
+    Tool used by the agent to search the
+    Nimbus HR & IT policy documents.
     """
 
     def __init__(self):
+
         self.retriever = PolicyRetriever()
 
-    def search(self, query: str) -> list[dict]:
+        self.guard = HallucinationGuard()
+
+    def search(
+        self,
+        query: str,
+    ):
         """
-        Search the policy documents.
-
-        Returns:
-            A list of retrieved chunks with metadata.
+        Search policy documents after
+        validating retrieval quality.
         """
 
-        logger.info("Searching policy documents...")
+        logger.info(
+            "Searching policy documents..."
+        )
 
-        documents = self.retriever.retrieve(query)
+        results = self.retriever.retrieve_with_scores(
+            query
+        )
 
-        results = []
+        if not self.guard.can_answer(results):
 
-        for doc in documents:
+            return {
+                "success": False,
+                "message": self.guard.refusal_message(),
+            }
 
-            results.append(
+        documents = []
+
+        for document, score in results:
+
+            documents.append(
                 {
-                    "content": doc.page_content,
-                    "source": doc.metadata.get(
-                        "source",
-                        "Unknown",
-                    ),
-                    "page": doc.metadata.get(
-                        "page",
-                        "Unknown",
-                    ),
+                    "content": document.page_content,
+                    "metadata": document.metadata,
+                    "score": round(score, 4),
                 }
             )
 
         logger.info(
-            "Retrieved %d document(s).",
-            len(results),
+            "Returning %d document(s).",
+            len(documents),
         )
 
-        return results
+        return {
+            "success": True,
+            "documents": documents,
+        }

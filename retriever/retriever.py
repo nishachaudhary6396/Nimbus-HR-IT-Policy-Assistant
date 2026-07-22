@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class PolicyRetriever:
     """
     Loads the existing Chroma vector database
-    and provides a retriever for policy search.
+    and provides methods for policy search.
     """
 
     def __init__(
@@ -18,6 +18,8 @@ class PolicyRetriever:
         persist_directory: str = "chroma_db",
         k: int = 4,
     ):
+
+        self.k = k
 
         self.embedding_model = (
             EmbeddingModel().get_embeddings()
@@ -30,7 +32,7 @@ class PolicyRetriever:
 
         self.retriever = self.vector_store.as_retriever(
             search_kwargs={
-                "k": k
+                "k": self.k
             }
         )
 
@@ -42,6 +44,9 @@ class PolicyRetriever:
         self,
         query: str,
     ):
+        """
+        Retrieve relevant policy documents.
+        """
 
         logger.info(
             "Searching for: %s",
@@ -56,3 +61,35 @@ class PolicyRetriever:
         )
 
         return documents
+
+    def retrieve_with_scores(
+        self,
+        query: str,
+    ):
+        """
+        Retrieve documents along with similarity scores.
+        """
+
+        logger.info(
+            "Searching with similarity scores for: %s",
+            query,
+        )
+
+        results = self.vector_store.similarity_search_with_score(
+            query,
+            k=self.k,
+        )
+
+        logger.info(
+            "Retrieved %d scored document(s).",
+            len(results),
+        )
+
+        for i, (_, score) in enumerate(results, start=1):
+            logger.info(
+                "Result %d score: %.4f",
+                i,
+                score,
+            )
+
+        return results

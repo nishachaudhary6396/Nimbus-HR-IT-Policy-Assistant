@@ -7,6 +7,7 @@ from agent.dependencies import (
     AgentDependencies,
     get_dependencies,
 )
+from agent.memory import ConversationMemory     
 from agent.system_prompt import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -30,14 +31,21 @@ policy_agent = Agent(
 def policy_search(
     ctx: RunContext[AgentDependencies],
     query: str,
-) -> list[dict]:
+):
     """
     Search the Nimbus HR & IT policy documents.
     """
 
-    logger.info("Policy search tool invoked.")
+    logger.info(
+        "Policy search tool invoked."
+    )
 
-    return ctx.deps.retriever.search(query)
+    result = ctx.deps.retriever.search(query)
+
+    if not result["success"]:
+        return result["message"]
+
+    return result["documents"]
 
 
 @policy_agent.tool
@@ -77,6 +85,9 @@ if __name__ == "__main__":
 
     deps = get_dependencies()
 
+    # Create memory once
+    memory = ConversationMemory()
+
     while True:
 
         question = input("\nAsk: ")
@@ -84,9 +95,16 @@ if __name__ == "__main__":
         if question.lower() == "exit":
             break
 
+        # Pass previous conversation
         result = policy_agent.run_sync(
             question,
             deps=deps,
+            message_history=memory.get_history(),
+        )
+
+        # Save current conversation
+        memory.update_history(
+            result.new_messages()
         )
 
         print("\nAnswer:\n")
